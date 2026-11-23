@@ -88,8 +88,11 @@ api.interceptors.response.use(
   },
 );
 
-// 백엔드가 돌려준 /covers/... 같은 경로를 화면에서 열 수 있는 주소로 바꿉니다.
+// 백엔드가 돌려준 표지 주소를 화면에서 열 수 있는 주소로 바꿉니다.
+// - /covers/abc.png 같은 경로: API 주소를 앞에 붙입니다.
+// - https://...처럼 완전한 주소(백엔드가 S3에 파일을 저장한 경우): 그대로 씁니다.
 export function toAssetUrl(path) {
   if (!path) return null;
+  if (/^https?:\/\//.test(path)) return path;
   return `${API_BASE_URL}${path}`;
 }
