@@ -1,11 +1,15 @@
-import ApiCheck from './practice/ApiCheck';
-import StaticBookPage from './practice/StaticBookPage';
+import { Route, Routes } from 'react-router';
+import Layout from './components/Layout';
+import BookListPage from './pages/BookListPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   return (
-    <>
-      <ApiCheck />
-      <StaticBookPage />
-    </>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<BookListPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
   );
 }
