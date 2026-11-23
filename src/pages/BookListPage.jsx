@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
+import { listAuthors } from '../api/authors';
 import { listBooks } from '../api/books';
 import ErrorMessage from '../components/ErrorMessage';
 import Pagination from '../components/Pagination';
@@ -16,10 +17,12 @@ export default function BookListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const sort = searchParams.get('sort') ?? 'id';
   const skip = Number(searchParams.get('skip') ?? 0);
+  const author = searchParams.get('author') ?? '';
 
   const q = searchParams.get('q') ?? '';
   const [keyword, setKeyword] = useState(q);
 
+  const [authors, setAuthors] = useState([]);
   const [page, setPage] = useState(null); // { items, total, skip, limit }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,12 +42,21 @@ export default function BookListPage() {
     updateParams({ q: keyword.trim(), skip: '' });
   }
 
+  // 저자 선택 상자에 쓸 목록은 처음 한 번만 불러옵니다.
+  useEffect(() => {
+    const controller = new AbortController();
+    listAuthors({}, controller.signal)
+      .then(setAuthors)
+      .catch(() => {}); // 저자 목록이 없어도 목록 화면은 쓸 수 있으므로 조용히 넘어갑니다.
+    return () => controller.abort();
+  }, []);
+
   // URL의 검색 조건이 바뀔 때마다 목록을 다시 불러옵니다.
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    listBooks({ q, sort, skip, limit: PAGE_SIZE }, controller.signal)
+    listBooks({ q, author, sort, skip, limit: PAGE_SIZE }, controller.signal)
       .then(setPage)
       .catch((err) => {
         if (err.name !== 'CanceledError') setError(err);
@@ -54,7 +66,7 @@ export default function BookListPage() {
       });
     // 조건이 바뀌거나 화면을 떠나면 이전 요청을 취소합니다.
     return () => controller.abort();
-  }, [q, sort, skip]);
+  }, [q, author, sort, skip]);
 
   return (
     <section>
@@ -68,6 +80,14 @@ export default function BookListPage() {
           onChange={(e) => setKeyword(e.target.value)}
         />
         <button type="submit">검색</button>
+        <select value={author} onChange={(e) => updateParams({ author: e.target.value, skip: '' })}>
+          <option value="">모든 저자</option>
+          {authors.map((a) => (
+            <option key={a.id} value={a.name}>
+              {a.name}
+            </option>
+          ))}
+        </select>
         <select value={sort} onChange={(e) => updateParams({ sort: e.target.value, skip: '' })}>
           {SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
