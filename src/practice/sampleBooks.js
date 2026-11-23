@@ -10,3 +10,8 @@ export const SAMPLE_PAGE = {
   skip: 0,
   limit: 10,
 };
+
+// 네트워크 요청 대신 시간이 걸리는 작업을 흉내 냅니다. (S6에서 실제 API로 바꿉니다.)
+export function loadSampleBooks(delayMs = 800) {
+  return new Promise((resolve) => setTimeout(() => resolve(SAMPLE_PAGE.items), delayMs));
+}

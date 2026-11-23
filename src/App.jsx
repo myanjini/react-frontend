@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AddBookForm from './practice/AddBookForm';
 import BookTable from './practice/BookTable';
 import SearchBox from './practice/SearchBox';
-import { SAMPLE_PAGE } from './practice/sampleBooks';
+import { loadSampleBooks } from './practice/sampleBooks';
 
 const SORTERS = {
   id: (a, b) => a.id - b.id,
@@ -11,7 +11,28 @@ const SORTERS = {
 };
 
 export default function App() {
-  const [books, setBooks] = useState(SAMPLE_PAGE.items);
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // 처음 그린 뒤 한 번 데이터를 불러옵니다.
+  useEffect(() => {
+    let ignore = false;
+    loadSampleBooks().then((items) => {
+      if (!ignore) {
+        setBooks(items);
+        setLoading(false);
+      }
+    });
+    // 정리 함수: 화면이 사라지면 늦게 도착한 결과를 무시합니다.
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // books가 바뀔 때마다 브라우저 탭 제목을 맞춥니다.
+  useEffect(() => {
+    document.title = `도서 관리 (${books.length}권)`;
+  }, [books.length]);
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState('id');
 
@@ -36,7 +57,8 @@ export default function App() {
         <option value="price">가격 낮은 순</option>
         <option value="-price">가격 높은 순</option>
       </select>
-      {visible.length === 0 ? <p>조건에 맞는 도서가 없습니다.</p> : <BookTable books={visible} />}
+      {loading && <p>불러오는 중입니다.</p>}
+      {!loading && (visible.length === 0 ? <p>조건에 맞는 도서가 없습니다.</p> : <BookTable books={visible} />)}
       <p>
         전체 {books.length}권 중 {visible.length}권 표시
       </p>
