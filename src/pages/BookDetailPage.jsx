@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteBook, getBook, uploadCover } from '../api/books';
 import { toAssetUrl } from '../api/client';
 import { borrowBook } from '../api/loans';
@@ -12,7 +12,7 @@ const MAX_BYTES = 2 * 1024 * 1024;
 
 // 업로드 전에 브라우저에서 미리 확인합니다. 사용자 편의를 위한 검사이며
 // 최종 판단(415, 413, 422)은 백엔드가 합니다.
-function precheckCover(file) {
+export function precheckCover(file) {
   const name = file.name.toLowerCase();
   if (!ALLOWED_EXT.some((ext) => name.endsWith(ext))) return 'jpg, jpeg, png 파일만 올릴 수 있습니다.';
   if (file.size === 0) return '빈 파일입니다.';
@@ -25,38 +25,52 @@ export default function BookDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const detailKey = ['books', 'detail', bookId];
+  const [notice, setNotice] = useState('');
+  const [localError, setLocalError] = useState(null);
+
   const { data: book, error: loadError } = useQuery({
-    queryKey: ['books', 'detail', bookId],
+    queryKey: detailKey,
     queryFn: ({ signal }) => getBook(bookId, signal),
   });
-  const [error, setError] = useState(null);
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
 
-  async function run(action, successMessage) {
-    setBusy(true);
-    setError(null);
+  // 서버 데이터를 바꾸는 요청은 useMutation으로 다룹니다.
+  const borrow = useMutation({
+    mutationFn: () => borrowBook(book.id),
+    onSuccess: () => {
+      setNotice('대여했습니다. 내 대여 화면에서 확인할 수 있습니다.');
+      queryClient.invalidateQueries({ queryKey: ['loans'] }); // 내 대여 목록 캐시를 낡은 것으로 표시
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => deleteBook(book.id),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: detailKey });
+      queryClient.invalidateQueries({ queryKey: ['books', 'list'] });
+      navigate('/', { replace: true });
+    },
+  });
+  const cover = useMutation({
+    mutationFn: (file) => uploadCover(book.id, file),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(detailKey, updated); // 응답으로 받은 최신 정보를 바로 캐시에
+      setNotice('표지를 바꿨습니다.');
+    },
+  });
+
+  const busy = borrow.isPending || remove.isPending || cover.isPending;
+  const error = localError ?? borrow.error ?? remove.error ?? cover.error;
+
+  function start(mutation, variables) {
     setNotice('');
-    try {
-      await action();
-      if (successMessage) setNotice(successMessage);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleBorrow() {
-    run(() => borrowBook(book.id), '대여했습니다. 내 대여 화면에서 확인할 수 있습니다.');
+    setLocalError(null);
+    [borrow, remove, cover].forEach((m) => m.reset()); // 이전 오류 메시지를 지웁니다.
+    mutation.mutate(variables);
   }
 
   function handleDelete() {
     if (!window.confirm(`"${book.title}" 도서를 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    run(async () => {
-      await deleteBook(book.id);
-      navigate('/', { replace: true });
-    });
+    start(remove);
   }
 
   function handleCoverChange(event) {
@@ -65,14 +79,10 @@ export default function BookDetailPage() {
     if (!file) return;
     const problem = precheckCover(file);
     if (problem) {
-      setError({ message: problem });
+      setLocalError({ message: problem });
       return;
     }
-    run(async () => {
-      const updated = await uploadCover(book.id, file);
-      // 응답으로 받은 최신 도서 정보를 캐시에 바로 넣습니다.
-      queryClient.setQueryData(['books', 'detail', bookId], updated);
-    }, '표지를 바꿨습니다.');
+    start(cover, file);
   }
 
   if (loadError) return <ErrorMessage error={loadError} />;
@@ -103,7 +113,7 @@ export default function BookDetailPage() {
 
         {user ? (
           <div className="actions">
-            <button onClick={handleBorrow} disabled={busy}>대여하기</button>
+            <button onClick={() => start(borrow)} disabled={busy}>대여하기</button>
             <Link className="button" to={`/books/${book.id}/edit`}>수정</Link>
             <label className="button">
               표지 올리기

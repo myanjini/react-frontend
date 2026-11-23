@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { createAuthor, listAuthors } from '../api/authors';
 import { useAuth } from '../auth/useAuth';
 import { createBook, getBook, updateBook } from '../api/books';
@@ -45,6 +46,7 @@ export default function BookFormPage() {
   const isEdit = Boolean(bookId);
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [newAuthor, setNewAuthor] = useState('');
   const [authorError, setAuthorError] = useState(null);
 
@@ -85,6 +87,7 @@ export default function BookFormPage() {
     try {
       const author = await createAuthor(name);
       setAuthors((prev) => [...prev, author]);
+      queryClient.invalidateQueries({ queryKey: ['authors'] }); // 목록 화면의 저자 선택 상자도 갱신
       setForm((prev) => ({ ...prev, author_id: String(author.id) })); // 새 저자를 바로 선택
       setNewAuthor('');
     } catch (err) {
@@ -108,6 +111,8 @@ export default function BookFormPage() {
     try {
       const payload = toPayload(form);
       const saved = isEdit ? await updateBook(bookId, diff(original, payload)) : await createBook(payload);
+      // 목록과 상세 캐시를 낡은 것으로 표시해 다음에 볼 때 새로 불러오게 합니다.
+      queryClient.invalidateQueries({ queryKey: ['books'] });
       navigate(`/books/${saved.id}`);
     } catch (err) {
       setError(err);
