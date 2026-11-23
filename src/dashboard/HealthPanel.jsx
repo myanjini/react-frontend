@@ -33,7 +33,7 @@ export default function HealthPanel({ history }) {
       </div>
 
       <h3>헬스 체크 응답 시간 (ms)</h3>
-      <div className="chart">
+      <div className="chart" role="img" aria-label={`최근 ${data.length}회 헬스 체크 응답 시간 차트`}>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--grid)" vertical={false} />

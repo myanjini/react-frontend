@@ -61,6 +61,11 @@ export default function DashboardPage() {
         </p>
       </header>
 
+      {/* 화면 낭독기 사용자에게 상태가 바뀔 때만 조용히 알려 줍니다. 화면에는 보이지 않습니다. */}
+      <p className="sr-only" aria-live="polite">
+        API 상태 {{ good: '정상', warning: '주의', critical: '장애', unknown: '확인 중' }[level]}
+      </p>
+
       <div className="kpi-row">
         <KpiCard title="API 상태" hint={latest ? `HTTP ${latest.httpStatus || '응답 없음'}` : null}>
           <StatusBadge level={level} />
