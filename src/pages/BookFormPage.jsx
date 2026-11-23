@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { listAuthors } from '../api/authors';
+import { createAuthor, listAuthors } from '../api/authors';
+import { useAuth } from '../auth/useAuth';
 import { createBook, getBook, updateBook } from '../api/books';
 import ErrorMessage from '../components/ErrorMessage';
 
@@ -43,6 +44,9 @@ export default function BookFormPage() {
   const { bookId } = useParams(); // 있으면 수정, 없으면 등록
   const isEdit = Boolean(bookId);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+  const [newAuthor, setNewAuthor] = useState('');
+  const [authorError, setAuthorError] = useState(null);
 
   const [authors, setAuthors] = useState([]);
   const [original, setOriginal] = useState(null);
@@ -72,6 +76,21 @@ export default function BookFormPage() {
     });
     return () => controller.abort();
   }, [bookId, isEdit]);
+
+  // 관리자만 저자를 등록할 수 있습니다(일반 사용자는 백엔드가 403으로 거절).
+  async function handleAddAuthor() {
+    const name = newAuthor.trim();
+    if (!name) return;
+    setAuthorError(null);
+    try {
+      const author = await createAuthor(name);
+      setAuthors((prev) => [...prev, author]);
+      setForm((prev) => ({ ...prev, author_id: String(author.id) })); // 새 저자를 바로 선택
+      setNewAuthor('');
+    } catch (err) {
+      setAuthorError(err.status === 409 ? { message: '이미 등록된 저자입니다.' } : err);
+    }
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -119,6 +138,15 @@ export default function BookFormPage() {
           </select>
           {fieldErrors.author_id && <small className="error">{fieldErrors.author_id}</small>}
         </label>
+        {isAdmin && (
+          <div className="toolbar">
+            <input placeholder="목록에 없는 저자 이름" value={newAuthor} onChange={(e) => setNewAuthor(e.target.value)} />
+            <button type="button" onClick={handleAddAuthor}>
+              저자 추가
+            </button>
+            <ErrorMessage error={authorError} />
+          </div>
+        )}
         <label>
           가격(원)
           <input name="price" type="number" min="0" max="1000000" value={form.price} onChange={handleChange} />
