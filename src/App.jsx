@@ -1,8 +1,12 @@
+import BookTable from './practice/BookTable';
+import { SAMPLE_PAGE } from './practice/sampleBooks';
+
 export default function App() {
   return (
     <main>
-      <h1>도서 관리</h1>
-      <p>React 프론트엔드 과정을 시작합니다.</p>
+      <h1>도서 목록</h1>
+      <BookTable books={SAMPLE_PAGE.items} />
+      <p>전체 {SAMPLE_PAGE.total}권</p>
     </main>
   );
 }
