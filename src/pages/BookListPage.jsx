@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAsync } from '../hooks/useAsync';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { listAuthors } from '../api/authors';
 import { listBooks } from '../api/books';
@@ -23,13 +23,20 @@ export default function BookListPage() {
   const q = searchParams.get('q') ?? '';
   const [keyword, setKeyword] = useState(q);
 
-  // 반복되던 "불러오기, 로딩, 오류, 취소" 코드를 useAsync 훅 하나로 줄였습니다.
-  const { data: authors = [] } = useAsync((signal) => listAuthors({}, signal), []);
+  // queryKey가 같으면 캐시를 함께 씁니다. 조건이 바뀌면 키가 바뀌어 새로 불러옵니다.
+  const { data: authors = [] } = useQuery({
+    queryKey: ['authors'],
+    queryFn: ({ signal }) => listAuthors({}, signal),
+  });
   const {
     data: page,
     error,
-    loading,
-  } = useAsync((signal) => listBooks({ q, author, sort, skip, limit: PAGE_SIZE }, signal), [q, author, sort, skip]);
+    isPending: loading,
+  } = useQuery({
+    queryKey: ['books', 'list', { q, author, sort, skip }],
+    queryFn: ({ signal }) => listBooks({ q, author, sort, skip, limit: PAGE_SIZE }, signal),
+    placeholderData: keepPreviousData, // 다음 페이지를 불러오는 동안 이전 목록을 그대로 보여 줍니다.
+  });
 
   function updateParams(changes) {
     const next = new URLSearchParams(searchParams);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAsync } from '../hooks/useAsync';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
 import { deleteBook, getBook, uploadCover } from '../api/books';
 import { toAssetUrl } from '../api/client';
@@ -24,7 +24,11 @@ export default function BookDetailPage() {
   const { bookId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: book, error: loadError, reload } = useAsync((signal) => getBook(bookId, signal), [bookId]);
+  const queryClient = useQueryClient();
+  const { data: book, error: loadError } = useQuery({
+    queryKey: ['books', 'detail', bookId],
+    queryFn: ({ signal }) => getBook(bookId, signal),
+  });
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,8 +69,9 @@ export default function BookDetailPage() {
       return;
     }
     run(async () => {
-      await uploadCover(book.id, file);
-      reload(); // 서버의 최신 정보로 다시 불러옵니다.
+      const updated = await uploadCover(book.id, file);
+      // 응답으로 받은 최신 도서 정보를 캐시에 바로 넣습니다.
+      queryClient.setQueryData(['books', 'detail', bookId], updated);
     }, '표지를 바꿨습니다.');
   }
 
