@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { toApiError, ApiError, NETWORK_ERROR_MESSAGE } from './errors';
 import { tokenStore } from '../auth/tokenStore';
+import { recordRequest } from '../dashboard/telemetry';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -9,12 +10,24 @@ export const api = axios.create({
   timeout: 10000,
 });
 
-// 요청 인터셉터: 액세스 토큰이 있으면 Authorization 헤더에 붙입니다.
+// 요청 인터셉터: 토큰을 붙이고 시작 시각을 기록합니다.
 api.interceptors.request.use((config) => {
   const token = tokenStore.getAccess();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  config.metadata = { startedAt: performance.now() };
   return config;
 });
+
+function record(config, status) {
+  if (!config?.metadata) return;
+  recordRequest({
+    time: Date.now(),
+    method: (config.method ?? 'get').toUpperCase(),
+    path: config.url,
+    status,
+    durationMs: Math.round(performance.now() - config.metadata.startedAt),
+  });
+}
 
 // 이 경로들은 401이 나와도 재발급을 시도하지 않습니다.
 const NO_RETRY_PATHS = ['/auth/token', '/auth/refresh', '/auth/signup', '/auth/logout'];
@@ -39,14 +52,18 @@ export function setOnAuthExpired(handler) {
   onAuthExpired = handler;
 }
 
-// 응답 인터셉터: 401이면 한 번만 재발급한 뒤 원래 요청을 다시 보냅니다.
+// 응답 인터셉터: 기록을 남기고, 401이면 한 번만 재발급 후 다시 보냅니다.
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    record(response.config, response.status);
+    return response;
+  },
   async (error) => {
     // 화면을 떠나 취소한 요청은 오류가 아니므로 그대로 넘깁니다.
     if (axios.isCancel(error)) throw error;
 
     const { config, response } = error;
+    record(config, response?.status ?? 0);
 
     if (!response) {
       throw new ApiError({ status: 0, code: 'NETWORK_ERROR', message: NETWORK_ERROR_MESSAGE });
