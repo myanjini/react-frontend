@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAsync } from '../hooks/useAsync';
 import { Link } from 'react-router';
 import { listMyLoans, returnLoan } from '../api/loans';
 import ErrorMessage from '../components/ErrorMessage';
@@ -14,28 +15,14 @@ function formatDate(iso) {
 }
 
 export default function MyLoansPage() {
-  const [loans, setLoans] = useState([]);
+  const { data: loans = [], error: loadError, reload } = useAsync((signal) => listMyLoans(signal), []);
   const [error, setError] = useState(null);
-
-  const load = useCallback((signal) => {
-    return listMyLoans(signal)
-      .then(setLoans)
-      .catch((err) => {
-        if (err.name !== 'CanceledError') setError(err);
-      });
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    load(controller.signal);
-    return () => controller.abort();
-  }, [load]);
 
   async function handleReturn(loanId) {
     setError(null);
     try {
       await returnLoan(loanId);
-      await load();
+      reload();
     } catch (err) {
       setError(err);
     }
@@ -47,7 +34,7 @@ export default function MyLoansPage() {
     <section>
       <h1>내 대여</h1>
       <p className="muted">현재 대여 중 {active.length}권 / 최대 3권</p>
-      <ErrorMessage error={error} />
+      <ErrorMessage error={loadError ?? error} />
       <table className="table">
         <thead>
           <tr>

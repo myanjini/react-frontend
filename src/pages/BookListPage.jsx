@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAsync } from '../hooks/useAsync';
 import { Link, useSearchParams } from 'react-router';
 import { listAuthors } from '../api/authors';
 import { listBooks } from '../api/books';
@@ -22,10 +23,13 @@ export default function BookListPage() {
   const q = searchParams.get('q') ?? '';
   const [keyword, setKeyword] = useState(q);
 
-  const [authors, setAuthors] = useState([]);
-  const [page, setPage] = useState(null); // { items, total, skip, limit }
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // 반복되던 "불러오기, 로딩, 오류, 취소" 코드를 useAsync 훅 하나로 줄였습니다.
+  const { data: authors = [] } = useAsync((signal) => listAuthors({}, signal), []);
+  const {
+    data: page,
+    error,
+    loading,
+  } = useAsync((signal) => listBooks({ q, author, sort, skip, limit: PAGE_SIZE }, signal), [q, author, sort, skip]);
 
   function updateParams(changes) {
     const next = new URLSearchParams(searchParams);
@@ -41,32 +45,6 @@ export default function BookListPage() {
     event.preventDefault();
     updateParams({ q: keyword.trim(), skip: '' });
   }
-
-  // 저자 선택 상자에 쓸 목록은 처음 한 번만 불러옵니다.
-  useEffect(() => {
-    const controller = new AbortController();
-    listAuthors({}, controller.signal)
-      .then(setAuthors)
-      .catch(() => {}); // 저자 목록이 없어도 목록 화면은 쓸 수 있으므로 조용히 넘어갑니다.
-    return () => controller.abort();
-  }, []);
-
-  // URL의 검색 조건이 바뀔 때마다 목록을 다시 불러옵니다.
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-    listBooks({ q, author, sort, skip, limit: PAGE_SIZE }, controller.signal)
-      .then(setPage)
-      .catch((err) => {
-        if (err.name !== 'CanceledError') setError(err);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    // 조건이 바뀌거나 화면을 떠나면 이전 요청을 취소합니다.
-    return () => controller.abort();
-  }, [q, author, sort, skip]);
 
   return (
     <section>
