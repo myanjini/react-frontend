@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { deleteBook, getBook, uploadCover } from '../api/books';
 import { toAssetUrl } from '../api/client';
+import { borrowBook } from '../api/loans';
 import { useAuth } from '../auth/useAuth';
 import ErrorMessage from '../components/ErrorMessage';
 
@@ -49,6 +50,10 @@ export default function BookDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleBorrow() {
+    run(() => borrowBook(book.id), '대여했습니다. 내 대여 화면에서 확인할 수 있습니다.');
   }
 
   function handleDelete() {
@@ -99,6 +104,7 @@ export default function BookDetailPage() {
 
         {user ? (
           <div className="actions">
+            <button onClick={handleBorrow} disabled={busy}>대여하기</button>
             <Link className="button" to={`/books/${book.id}/edit`}>수정</Link>
             <label className="button">
               표지 올리기
@@ -107,7 +113,7 @@ export default function BookDetailPage() {
             <button className="danger" onClick={handleDelete} disabled={busy}>삭제</button>
           </div>
         ) : (
-          <p className="muted">수정은 로그인 후 사용할 수 있습니다.</p>
+          <p className="muted">대여와 수정은 로그인 후 사용할 수 있습니다.</p>
         )}
       </div>
     </section>
