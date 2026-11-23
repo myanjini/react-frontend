@@ -4,6 +4,7 @@ import { listBooks } from '../api/books';
 import { checkHealth } from '../api/health';
 import HealthPanel from './HealthPanel';
 import KpiCard from './KpiCard';
+import LogAnalyzer from './LogAnalyzer';
 import StatusBadge from './StatusBadge';
 import StatusDistribution from './StatusDistribution';
 import { average, errorRate, healthLevel, percentile } from './metrics';
@@ -83,6 +84,8 @@ export default function DashboardPage() {
         <HealthPanel history={history} />
         <StatusDistribution records={records} title="브라우저 요청 상태 코드 분포" />
       </div>
+
+      <LogAnalyzer />
     </div>
   );
 }
