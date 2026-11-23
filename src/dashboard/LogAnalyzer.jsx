@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import ChartTooltip from './ChartTooltip';
 import StatusDistribution from './StatusDistribution';
@@ -6,7 +6,9 @@ import { countPerMinute, parseRequestLogs, summarizeByPath } from './metrics';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-export default function LogAnalyzer() {
+// 요청 기록이 늘 때마다 대시보드 전체가 다시 그려집니다. props가 없는 이 컴포넌트는
+// memo로 감싸 부모가 다시 그려져도 건너뛰게 합니다.
+function LogAnalyzer() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
 
@@ -103,3 +105,5 @@ export default function LogAnalyzer() {
     </section>
   );
 }
+
+export default memo(LogAnalyzer);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listBooks } from '../api/books';
 import { checkHealth } from '../api/health';
@@ -45,8 +45,11 @@ export default function DashboardPage() {
   }, [latest]);
 
   const level = healthLevel(latest);
-  const durations = records.map((r) => r.durationMs);
-  const rate = errorRate(records);
+  // records가 바뀔 때만 다시 계산합니다. 다른 상태가 바뀌어 다시 그려질 때는 이전 결과를 씁니다.
+  const stats = useMemo(() => {
+    const durations = records.map((r) => r.durationMs);
+    return { avg: average(durations), p95: percentile(durations, 95), rate: errorRate(records) };
+  }, [records]);
 
   return (
     <div className="dashboard">
@@ -68,13 +71,13 @@ export default function DashboardPage() {
         <KpiCard title="등록 도서" value={bookTotal === null ? null : bookTotal.toLocaleString('ko-KR')} unit="권" />
         <KpiCard
           title="브라우저 측정 응답 시간"
-          value={average(durations)}
+          value={stats.avg}
           unit="ms"
-          hint={`p95 ${percentile(durations, 95) ?? '-'} ms, 최근 ${records.length}건`}
+          hint={`p95 ${stats.p95 ?? '-'} ms, 최근 ${records.length}건`}
         />
         <KpiCard
           title="오류율 (5xx, 연결 실패)"
-          value={rate === null ? null : rate.toFixed(1)}
+          value={stats.rate === null ? null : stats.rate.toFixed(1)}
           unit="%"
           hint="이 브라우저에서 보낸 요청 기준"
         />
