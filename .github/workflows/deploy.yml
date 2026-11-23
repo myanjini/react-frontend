@@ -1,0 +1,76 @@
+# CD: main에 코드가 들어오면 테스트를 통과한 경우에만 빌드해 S3 정적 웹사이트에 배포합니다.
+# 수동 실행(workflow_dispatch)에 이전 커밋을 지정하면 그 시점으로 롤백 배포합니다.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '배포할 커밋 SHA 또는 태그 (롤백할 때 지정, 비우면 main 최신)'
+        required: false
+        default: ''
+
+# 같은 환경에 배포가 겹치지 않게 하나씩 실행합니다.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    # 평소 배포(push)는 CI를 먼저 통과해야 합니다. 롤백은 이미 검증된 커밋이므로 건너뜁니다.
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    environment: production # 저장소 Settings > Environments에서 승인자와 변수를 관리합니다.
+    permissions:
+      contents: read
+      id-token: write # OIDC 토큰을 받아 AWS 역할을 맡기 위해 필요합니다.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 운영 빌드
+        run: npm run build
+        env:
+          # S3에서는 Nginx 프록시를 쓸 수 없으므로 백엔드의 공개 주소를 빌드에 새깁니다.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+
+      - name: AWS 인증 (OIDC, 장기 액세스 키 없음)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: S3에 업로드
+        env:
+          BUCKET: ${{ vars.S3_BUCKET }}
+        run: |
+          # 1) 해시가 붙은 파일은 오래 캐시합니다.
+          aws s3 sync dist/assets "s3://$BUCKET/assets" --delete \
+            --cache-control "public, max-age=31536000, immutable"
+          # 2) index.html 등 나머지는 매번 새로 확인하게 합니다. assets는 1)에서 처리했으므로 제외합니다.
+          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" \
+            --cache-control "no-cache"
+
+      - name: 배포 결과
+        env:
+          BUCKET: ${{ vars.S3_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: |
+          echo "배포한 커밋: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "사이트 주소: http://$BUCKET.s3-website.$REGION.amazonaws.com" >> "$GITHUB_STEP_SUMMARY"
