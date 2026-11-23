@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+e2e
+test-results
+playwright-report
+.env.local
+.env.*.local
+*.log
+Dockerfile
+.dockerignore
